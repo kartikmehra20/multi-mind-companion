@@ -188,9 +188,36 @@ const Index = () => {
       console.error('Error details:', error);
       console.error('=========================');
       
+      let errorMessage = 'Failed to send message. Please try again.';
+      
+      // Extract detailed error information from Supabase Edge Function
+      if (error.details) {
+        try {
+          // Try to parse JSON details if it's a string
+          const details = typeof error.details === 'string' 
+            ? JSON.parse(error.details) 
+            : error.details;
+          
+          if (details.error) {
+            errorMessage = details.error;
+          } else if (details.message) {
+            errorMessage = details.message;
+          } else if (typeof details === 'string') {
+            errorMessage = details;
+          }
+        } catch (parseError) {
+          // If JSON parsing fails, use details as string
+          errorMessage = typeof error.details === 'string' 
+            ? error.details 
+            : error.message || errorMessage;
+        }
+      } else if (error.message && error.message !== 'Edge Function returned a non-2xx status code') {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: 'Error',
-        description: error.message || error.details || 'Failed to send message. Please check console for details.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
