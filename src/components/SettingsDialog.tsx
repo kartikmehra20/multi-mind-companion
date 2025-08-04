@@ -19,7 +19,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
+import { ApiKeyDialog } from '@/components/ApiKeyDialog';
+import { CustomModelDialog } from '@/components/CustomModelDialog';
+import { useApiKeys } from '@/hooks/useApiKeys';
+import { Plus, Key, Trash2, Check, X } from 'lucide-react';
 
 interface AppSettings {
   id: string;
@@ -78,16 +83,116 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   onSave
 }) => {
   const [formData, setFormData] = useState<Partial<AppSettings>>({});
+  const [customModels, setCustomModels] = useState<{[key: string]: string[]}>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<'openai' | 'openrouter' | 'huggingface'>('openrouter');
+  const [customModelDialogOpen, setCustomModelDialogOpen] = useState(false);
+  
   const { toast } = useToast();
+  const { apiKeys, hasApiKey, setApiKey, removeApiKey } = useApiKeys();
 
   useEffect(() => {
     if (settings) {
       setFormData(settings);
     }
+    // Load custom models from localStorage
+    try {
+      const saved = localStorage.getItem('custom_models');
+      if (saved) {
+        setCustomModels(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error('Error loading custom models:', error);
+    }
   }, [settings]);
 
+  const saveCustomModels = (models: {[key: string]: string[]}) => {
+    try {
+      localStorage.setItem('custom_models', JSON.stringify(models));
+      setCustomModels(models);
+    } catch (error) {
+      console.error('Error saving custom models:', error);
+    }
+  };
+
+  const handleAddCustomModel = (provider: string, modelId: string) => {
+    const updated = { ...customModels };
+    if (!updated[provider]) {
+      updated[provider] = [];
+    }
+    if (!updated[provider].includes(modelId)) {
+      updated[provider].push(modelId);
+      saveCustomModels(updated);
+      toast({
+        title: "Model added",
+        description: `${modelId} has been added to ${provider}`,
+      });
+    }
+  };
+
+  const handleRemoveCustomModel = (provider: string, modelId: string) => {
+    const updated = { ...customModels };
+    if (updated[provider]) {
+      updated[provider] = updated[provider].filter(m => m !== modelId);
+      saveCustomModels(updated);
+    }
+  };
+
+  const getAllModels = (provider: string) => {
+    const defaultModels = models[provider as keyof typeof models] || [];
+    const custom = customModels[provider] || [];
+    return [...defaultModels, ...custom];
+  };
+
+  const handleApiKeySave = async (provider: 'openai' | 'openrouter' | 'huggingface', key: string) => {
+    await setApiKey(provider, key);
+    toast({
+      title: "API Key saved",
+      description: `${provider} API key has been saved successfully.`,
+    });
+
+    // If transcription was just enabled and this is huggingface, enable it
+    if (provider === 'huggingface' && formData.utility_transcription_enabled) {
+      toast({
+        title: "Transcription ready",
+        description: "Voice transcription is now available with your Hugging Face API key.",
+      });
+    }
+  };
+
+  const checkTranscriptionRequirements = () => {
+    if (formData.utility_transcription_enabled) {
+      const provider = formData.utility_transcription_provider;
+      if (provider === 'huggingface' && !hasApiKey('huggingface')) {
+        setSelectedProvider('huggingface');
+        setApiKeyDialogOpen(true);
+        return false;
+      } else if (provider === 'openai' && !hasApiKey('openai')) {
+        setSelectedProvider('openai');
+        setApiKeyDialogOpen(true);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const checkChatRequirements = () => {
+    const provider = formData.chat_using as 'openai' | 'openrouter' | 'huggingface';
+    if (provider && !hasApiKey(provider)) {
+      setSelectedProvider(provider);
+      setApiKeyDialogOpen(true);
+      return false;
+    }
+    return true;
+  };
+
   const handleSave = async () => {
+    // Check if required API keys are present
+    if (!checkTranscriptionRequirements() || !checkChatRequirements()) {
+      return;
+    }
+
     setIsSaving(true);
     try {
       await onSave(formData);
@@ -109,6 +214,23 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
   const updateField = (field: keyof AppSettings, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleTranscriptionToggle = (enabled: boolean) => {
+    updateField('utility_transcription_enabled', enabled);
+    if (enabled && !checkTranscriptionRequirements()) {
+      // Will be handled by checkTranscriptionRequirements
+      return;
+    }
+  };
+
+  const handleProviderChange = (provider: string) => {
+    updateField('chat_using', provider);
+    // Reset model when provider changes
+    const availableModels = getAllModels(provider);
+    if (availableModels.length > 0) {
+      updateField('default_model', availableModels[0]);
+    }
   };
 
   if (!settings) return null;
@@ -175,7 +297,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   <Switch
                     id="transcription"
                     checked={formData.utility_transcription_enabled || false}
-                    onCheckedChange={(checked) => updateField('utility_transcription_enabled', checked)}
+                    onCheckedChange={handleTranscriptionToggle}
                   />
                 </div>
                 
@@ -214,7 +336,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 <Label>Chat Provider</Label>
                 <Select
                   value={formData.chat_using || 'openrouter'}
-                  onValueChange={(value) => updateField('chat_using', value)}
+                  onValueChange={handleProviderChange}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -228,7 +350,17 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
               </div>
               
               <div className="space-y-2">
-                <Label>Default Model</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Default Model</Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCustomModelDialogOpen(true)}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add Model
+                  </Button>
+                </div>
                 <Select
                   value={formData.default_model || ''}
                   onValueChange={(value) => updateField('default_model', value)}
@@ -237,13 +369,48 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {models[formData.chat_using as keyof typeof models]?.map((model) => (
+                    {getAllModels(formData.chat_using || 'openrouter').map((model) => (
                       <SelectItem key={model} value={model}>
-                        {model}
+                        <div className="flex items-center justify-between w-full">
+                          <span>{model}</span>
+                          {customModels[formData.chat_using || 'openrouter']?.includes(model) && (
+                            <Badge variant="secondary" className="ml-2 text-xs">Custom</Badge>
+                          )}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Custom Models</Label>
+                <div className="space-y-2">
+                  {Object.entries(customModels).map(([provider, models]) => (
+                    <div key={provider}>
+                      {models.length > 0 && (
+                        <>
+                          <div className="text-sm font-medium capitalize">{provider}</div>
+                          <div className="flex flex-wrap gap-1">
+                            {models.map((model) => (
+                              <Badge key={model} variant="outline" className="text-xs">
+                                {model}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="ml-1 h-3 w-3 p-0"
+                                  onClick={() => handleRemoveCustomModel(provider, model)}
+                                >
+                                  <X className="w-2 h-2" />
+                                </Button>
+                              </Badge>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
               
               <div className="space-y-2">
@@ -256,67 +423,77 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             </TabsContent>
             
             <TabsContent value="api" className="space-y-4">
-              <div className="space-y-2">
-                <Label>API Key Storage</Label>
-                <Select
-                  value={formData.use_keys_from || 'localstorage'}
-                  onValueChange={(value) => updateField('use_keys_from', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="localstorage">Local Storage</SelectItem>
-                    <SelectItem value="database">Database</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium">API Key Management</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Manage your API keys for different providers
+                    </p>
+                  </div>
+                </div>
 
-              {formData.use_keys_from === 'database' && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="openai-key">OpenAI API Key</Label>
-                    <Input
-                      id="openai-key"
-                      type="password"
-                      value={formData.dangerous_openai_api_key || ''}
-                      onChange={(e) => updateField('dangerous_openai_api_key', e.target.value)}
-                      placeholder="sk-..."
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="openrouter-key">OpenRouter API Key</Label>
-                    <Input
-                      id="openrouter-key"
-                      type="password"
-                      value={formData.dangerous_openrouter_api_key || ''}
-                      onChange={(e) => updateField('dangerous_openrouter_api_key', e.target.value)}
-                      placeholder="sk-or-..."
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="huggingface-key">Hugging Face API Key</Label>
-                    <Input
-                      id="huggingface-key"
-                      type="password"
-                      value={formData.dangerous_huggingface_api_key || ''}
-                      onChange={(e) => updateField('dangerous_huggingface_api_key', e.target.value)}
-                      placeholder="hf_..."
-                    />
-                  </div>
-                </>
-              )}
-              
-              {formData.use_keys_from === 'localstorage' && (
-                <div className="p-4 bg-muted rounded-lg">
+                <div className="space-y-3">
+                  {(['openrouter', 'openai', 'huggingface'] as const).map((provider) => (
+                    <div key={provider} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Key className="w-4 h-4" />
+                        <div>
+                          <div className="font-medium capitalize">{provider}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {hasApiKey(provider) ? (
+                              <span className="flex items-center gap-1 text-green-600">
+                                <Check className="w-3 h-3" />
+                                API key configured
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-muted-foreground">
+                                <X className="w-3 h-3" />
+                                No API key
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedProvider(provider);
+                            setApiKeyDialogOpen(true);
+                          }}
+                        >
+                          {hasApiKey(provider) ? 'Update' : 'Add'} Key
+                        </Button>
+                        {hasApiKey(provider) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              removeApiKey(provider);
+                              toast({
+                                title: "API Key removed",
+                                description: `${provider} API key has been removed.`,
+                              });
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-3 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">
-                    API keys will be stored in your browser's local storage. 
-                    You'll need to enter them when using the application.
+                    <strong>Security:</strong> API keys are stored securely in your browser's local storage 
+                    and are never transmitted to our servers. They are only used to make direct API calls 
+                    from your browser to the respective AI providers.
                   </p>
                 </div>
-              )}
+              </div>
             </TabsContent>
             
             <TabsContent value="budget" className="space-y-4">
@@ -369,6 +546,21 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             {isSaving ? 'Saving...' : 'Save Settings'}
           </Button>
         </div>
+
+        {/* API Key Dialog */}
+        <ApiKeyDialog
+          open={apiKeyDialogOpen}
+          onOpenChange={setApiKeyDialogOpen}
+          provider={selectedProvider}
+          onSave={handleApiKeySave}
+        />
+
+        {/* Custom Model Dialog */}
+        <CustomModelDialog
+          open={customModelDialogOpen}
+          onOpenChange={setCustomModelDialogOpen}
+          onAdd={handleAddCustomModel}
+        />
       </DialogContent>
     </Dialog>
   );

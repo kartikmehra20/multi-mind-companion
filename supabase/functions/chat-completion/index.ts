@@ -18,11 +18,11 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, threadId, model, provider, temperature, maxTokens } = await req.json();
+    const { messages, threadId, model, provider, temperature, maxTokens, apiKeys } = await req.json();
     
     console.log('Chat completion request:', { threadId, model, provider, messagesCount: messages.length });
 
-    // Get API keys from settings or environment
+    // Get API keys from settings or from the request (local storage)
     const { data: settings } = await supabase
       .from('app_settings')
       .select('*')
@@ -33,18 +33,18 @@ serve(async (req) => {
     let baseUrl = '';
     let requestModel = model;
 
-    // Configure provider settings
+    // First try to get API key from request (local storage), then from settings
     switch (provider) {
       case 'openai':
-        apiKey = settings?.dangerous_openai_api_key || Deno.env.get('OPENAI_API_KEY') || '';
+        apiKey = apiKeys?.openai || settings?.dangerous_openai_api_key || Deno.env.get('OPENAI_API_KEY') || '';
         baseUrl = 'https://api.openai.com/v1/chat/completions';
         break;
       case 'openrouter':
-        apiKey = settings?.dangerous_openrouter_api_key || Deno.env.get('OPENROUTER_API_KEY') || '';
+        apiKey = apiKeys?.openrouter || settings?.dangerous_openrouter_api_key || Deno.env.get('OPENROUTER_API_KEY') || '';
         baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
         break;
       case 'huggingface':
-        apiKey = settings?.dangerous_huggingface_api_key || Deno.env.get('HUGGINGFACE_API_KEY') || '';
+        apiKey = apiKeys?.huggingface || settings?.dangerous_huggingface_api_key || Deno.env.get('HUGGINGFACE_API_KEY') || '';
         baseUrl = 'https://api-inference.huggingface.co/models/' + model;
         break;
       default:

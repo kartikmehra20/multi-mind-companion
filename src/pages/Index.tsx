@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { useThreads } from '@/hooks/useThreads';
 import { useMessages } from '@/hooks/useMessages';
 import { useSettings } from '@/hooks/useSettings';
+import { useApiKeys } from '@/hooks/useApiKeys';
+import { ApiKeyDialog } from '@/components/ApiKeyDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,12 +20,15 @@ const Index = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [requiredProvider, setRequiredProvider] = useState<'openai' | 'openrouter' | 'huggingface'>('openrouter');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { toast } = useToast();
   const { threads, createThread, updateThread, deleteThread } = useThreads();
   const { messages, addMessage, updateMessage } = useMessages(currentThreadId);
   const { settings, updateSettings } = useSettings();
+  const { apiKeys, hasApiKey, setApiKey } = useApiKeys();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -90,6 +95,14 @@ const Index = () => {
       return;
     }
 
+    // Check if API key is available for the current provider
+    const provider = settings?.chat_using as 'openai' | 'openrouter' | 'huggingface';
+    if (provider && !hasApiKey(provider)) {
+      setRequiredProvider(provider);
+      setApiKeyDialogOpen(true);
+      return;
+    }
+
     setIsLoading(true);
     try {
       // Add user message
@@ -133,7 +146,8 @@ const Index = () => {
           model: settings?.default_model || 'anthropic/claude-3-haiku',
           provider: settings?.chat_using || 'openrouter',
           temperature: settings?.default_temperature || 0.7,
-          maxTokens: settings?.max_output_tokens || 0
+          maxTokens: settings?.max_output_tokens || 0,
+          apiKeys: apiKeys
         }
       });
 
@@ -168,6 +182,14 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleApiKeySave = async (provider: 'openai' | 'openrouter' | 'huggingface', key: string) => {
+    await setApiKey(provider, key);
+    toast({
+      title: "API Key saved",
+      description: `${provider} API key has been saved. You can now start chatting!`,
+    });
   };
 
   return (
@@ -289,6 +311,14 @@ const Index = () => {
         onOpenChange={setIsSettingsOpen}
         settings={settings}
         onSave={updateSettings}
+      />
+
+      {/* API Key Dialog */}
+      <ApiKeyDialog
+        open={apiKeyDialogOpen}
+        onOpenChange={setApiKeyDialogOpen}
+        provider={requiredProvider}
+        onSave={handleApiKeySave}
       />
     </div>
   );
