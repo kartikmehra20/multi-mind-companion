@@ -105,6 +105,8 @@ const Index = () => {
 
     setIsLoading(true);
     try {
+      console.log('Sending message:', { content, threadId: currentThreadId, provider });
+      
       // Add user message
       const userMessage = await addMessage({
         thread_id: currentThreadId,
@@ -138,6 +140,12 @@ const Index = () => {
         }
       ];
 
+      console.log('Calling chat completion with:', {
+        messagesCount: chatMessages.length,
+        model: settings?.default_model,
+        provider: settings?.chat_using,
+        hasApiKeys: Object.keys(apiKeys).length > 0
+      });
       // Call AI API
       const { data, error } = await supabase.functions.invoke('chat-completion', {
         body: {
@@ -151,6 +159,7 @@ const Index = () => {
         }
       });
 
+      console.log('Chat completion response:', { data, error });
       if (error) throw error;
 
       // Add assistant message
@@ -173,10 +182,15 @@ const Index = () => {
       });
 
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('=== MESSAGE SEND ERROR ===');
+      console.error('Error type:', error.constructor?.name);
+      console.error('Error message:', error.message);
+      console.error('Error details:', error);
+      console.error('=========================');
+      
       toast({
         title: 'Error',
-        description: error.message || 'Failed to send message',
+        description: error.message || error.details || 'Failed to send message. Please check console for details.',
         variant: 'destructive',
       });
     } finally {

@@ -30,19 +30,26 @@ export const useThreads = () => {
 
   const createThread = async (title?: string) => {
     try {
+      console.log('Creating new thread with title:', title);
+      
       const { data, error } = await supabase
         .from('threads')
         .insert([{ title: title || 'New Chat' }])
         .select()
         .single();
 
+      console.log('Thread creation result:', { data: !!data, error });
       if (error) throw error;
       if (data) {
         setThreads(prev => [data, ...prev]);
         return data.id;
       }
     } catch (error) {
-      console.error('Error creating thread:', error);
+      console.error('=== CREATE THREAD ERROR ===');
+      console.error('Error type:', error.constructor?.name);
+      console.error('Error message:', error.message);
+      console.error('Error details:', error);
+      console.error('==========================');
       throw error;
     }
   };

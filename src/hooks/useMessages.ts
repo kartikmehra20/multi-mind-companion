@@ -63,19 +63,30 @@ export const useMessages = (threadId?: string) => {
 
   const addMessage = async (message: Omit<Message, 'id' | 'created_at'>) => {
     try {
+      console.log('Adding message to database:', {
+        threadId: message.thread_id,
+        role: message.role,
+        contentLength: message.content?.length
+      });
+      
       const { data, error } = await supabase
         .from('messages')
         .insert([message])
         .select()
         .single();
 
+      console.log('Database insert result:', { data: !!data, error });
       if (error) throw error;
       if (data) {
         setMessages(prev => [...prev, data]);
         return data;
       }
     } catch (error) {
-      console.error('Error adding message:', error);
+      console.error('=== ADD MESSAGE ERROR ===');
+      console.error('Error type:', error.constructor?.name);
+      console.error('Error message:', error.message);
+      console.error('Error details:', error);
+      console.error('========================');
       throw error;
     }
   };
