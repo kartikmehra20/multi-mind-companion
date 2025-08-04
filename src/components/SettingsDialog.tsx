@@ -24,7 +24,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { ApiKeyDialog } from '@/components/ApiKeyDialog';
 import { CustomModelDialog } from '@/components/CustomModelDialog';
 import { useApiKeys } from '@/hooks/useApiKeys';
-import { Plus, Key, Trash2, Check, X } from 'lucide-react';
+import { Plus, Key, Trash2, Check, X, Zap } from 'lucide-react';
 
 interface AppSettings {
   id: string;
@@ -40,6 +40,7 @@ interface AppSettings {
   dangerous_openai_api_key?: string;
   dangerous_openrouter_api_key?: string;
   dangerous_huggingface_api_key?: string;
+  dangerous_together_api_key?: string;
   utility_transcription_enabled: boolean;
   utility_transcription_model: string;
   utility_transcription_provider: string;
@@ -55,6 +56,12 @@ interface SettingsDialogProps {
 
 const models = {
   openrouter: [
+    // Free models
+    'meta-llama/llama-3.2-3b-instruct:free',
+    'meta-llama/llama-3.2-1b-instruct:free',
+    'microsoft/phi-3-mini-128k-instruct:free',
+    'google/gemma-2-9b-it:free',
+    // Paid models
     'anthropic/claude-3-haiku',
     'anthropic/claude-3-sonnet',
     'anthropic/claude-3-opus',
@@ -63,6 +70,19 @@ const models = {
     'openai/gpt-3.5-turbo',
     'meta-llama/llama-3-8b-instruct',
     'meta-llama/llama-3-70b-instruct',
+  ],
+  together: [
+    // Free models (Together AI offers some free tier usage)
+    'meta-llama/Llama-3.2-3B-Instruct-Turbo',
+    'meta-llama/Llama-3.2-1B-Instruct-Turbo',
+    'microsoft/DialoGPT-medium',
+    'NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO',
+    // Popular models
+    'meta-llama/Llama-3-8b-chat-hf',
+    'meta-llama/Llama-3-70b-chat-hf',
+    'mistralai/Mixtral-8x7B-Instruct-v0.1',
+    'NousResearch/Nous-Hermes-2-Yi-34B',
+    'teknium/OpenHermes-2.5-Mistral-7B',
   ],
   openai: [
     'gpt-4',
@@ -86,7 +106,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [customModels, setCustomModels] = useState<{[key: string]: string[]}>({});
   const [isSaving, setIsSaving] = useState(false);
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<'openai' | 'openrouter' | 'huggingface'>('openrouter');
+  const [selectedProvider, setSelectedProvider] = useState<'openai' | 'openrouter' | 'huggingface' | 'together'>('openrouter');
   const [customModelDialogOpen, setCustomModelDialogOpen] = useState(false);
   
   const { toast } = useToast();
@@ -178,7 +198,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   };
 
   const checkChatRequirements = () => {
-    const provider = formData.chat_using as 'openai' | 'openrouter' | 'huggingface';
+    const provider = formData.chat_using as 'openai' | 'openrouter' | 'huggingface' | 'together';
     if (provider && !hasApiKey(provider)) {
       setSelectedProvider(provider);
       setApiKeyDialogOpen(true);
@@ -314,6 +334,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="openai">OpenAI</SelectItem>
+                          <SelectItem value="together">Together AI</SelectItem>
                           <SelectItem value="huggingface">Hugging Face</SelectItem>
                         </SelectContent>
                       </Select>
@@ -372,7 +393,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     {getAllModels(formData.chat_using || 'openrouter').map((model) => (
                       <SelectItem key={model} value={model}>
                         <div className="flex items-center justify-between w-full">
-                          <span>{model}</span>
+                          <div className="flex items-center gap-2">
+                            <span>{model}</span>
+                            {(model.includes(':free') || 
+                              (formData.chat_using === 'together' && 
+                               ['meta-llama/Llama-3.2-3B-Instruct-Turbo', 'meta-llama/Llama-3.2-1B-Instruct-Turbo'].includes(model))) && (
+                              <Zap className="w-3 h-3 text-green-500" title="Free model" />
+                            )}
+                          </div>
                           {customModels[formData.chat_using || 'openrouter']?.includes(model) && (
                             <Badge variant="secondary" className="ml-2 text-xs">Custom</Badge>
                           )}
@@ -434,12 +462,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 </div>
 
                 <div className="space-y-3">
-                  {(['openrouter', 'openai', 'huggingface'] as const).map((provider) => (
+                  {(['openrouter', 'together', 'openai', 'huggingface'] as const).map((provider) => (
                     <div key={provider} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <Key className="w-4 h-4" />
                         <div>
-                          <div className="font-medium capitalize">{provider}</div>
+                          <div className="font-medium capitalize">
+                            {provider === 'together' ? 'Together AI' : provider}
+                          </div>
                           <div className="text-sm text-muted-foreground">
                             {hasApiKey(provider) ? (
                               <span className="flex items-center gap-1 text-green-600">

@@ -4,6 +4,7 @@ interface ApiKeys {
   openai?: string;
   openrouter?: string;
   huggingface?: string;
+  together?: string;
 }
 
 export const useApiKeys = () => {
@@ -15,11 +16,13 @@ export const useApiKeys = () => {
       const openai = localStorage.getItem('openai_api_key');
       const openrouter = localStorage.getItem('openrouter_api_key');
       const huggingface = localStorage.getItem('huggingface_api_key');
+      const together = localStorage.getItem('together_api_key');
 
       setApiKeys({
         openai: openai || undefined,
         openrouter: openrouter || undefined,
-        huggingface: huggingface || undefined
+        huggingface: huggingface || undefined,
+        together: together || undefined
       });
     } catch (error) {
       console.error('Error loading API keys:', error);

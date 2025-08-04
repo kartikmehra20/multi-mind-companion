@@ -69,6 +69,7 @@ export const CustomModelDialog: React.FC<CustomModelDialogProps> = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="openrouter">OpenRouter</SelectItem>
+                <SelectItem value="together">Together AI</SelectItem>
                 <SelectItem value="openai">OpenAI</SelectItem>
                 <SelectItem value="huggingface">Hugging Face</SelectItem>
               </SelectContent>

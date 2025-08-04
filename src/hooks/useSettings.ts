@@ -15,6 +15,7 @@ interface AppSettings {
   dangerous_openai_api_key?: string;
   dangerous_openrouter_api_key?: string;
   dangerous_huggingface_api_key?: string;
+  dangerous_together_api_key?: string;
   utility_transcription_enabled: boolean;
   utility_transcription_model: string;
   utility_transcription_provider: string;

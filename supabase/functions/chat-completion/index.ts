@@ -15,6 +15,7 @@ console.log('SUPABASE_SERVICE_ROLE_KEY:', Deno.env.get('SUPABASE_SERVICE_ROLE_KE
 console.log('OPENROUTER_API_KEY:', Deno.env.get('OPENROUTER_API_KEY') ? 'SET' : 'MISSING');
 console.log('OPENAI_API_KEY:', Deno.env.get('OPENAI_API_KEY') ? 'SET' : 'MISSING');
 console.log('HUGGINGFACE_API_KEY:', Deno.env.get('HUGGINGFACE_API_KEY') ? 'SET' : 'MISSING');
+console.log('TOGETHER_API_KEY:', Deno.env.get('TOGETHER_API_KEY') ? 'SET' : 'MISSING');
 console.log('=====================================');
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -126,6 +127,10 @@ serve(async (req) => {
       case 'openrouter':
         apiKey = apiKeys?.openrouter || settings?.dangerous_openrouter_api_key || Deno.env.get('OPENROUTER_API_KEY') || '';
         baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
+        break;
+      case 'together':
+        apiKey = apiKeys?.together || settings?.dangerous_together_api_key || Deno.env.get('TOGETHER_API_KEY') || '';
+        baseUrl = 'https://api.together.xyz/v1/chat/completions';
         break;
       case 'huggingface':
         apiKey = apiKeys?.huggingface || settings?.dangerous_huggingface_api_key || Deno.env.get('HUGGINGFACE_API_KEY') || '';
@@ -251,15 +256,15 @@ serve(async (req) => {
       }
     }
 
-    // OpenAI/OpenRouter request
-    console.log('Processing OpenAI/OpenRouter request');
+    // OpenAI/OpenRouter/Together AI request
+    console.log(`Processing ${provider} request`);
     try {
       const response = await fetch(baseUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
-          ...(provider === 'openrouter' && {
+          ...((provider === 'openrouter' || provider === 'together') && {
             'HTTP-Referer': 'https://lovable.dev',
             'X-Title': 'Multi-Mind Companion'
           })

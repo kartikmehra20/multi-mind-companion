@@ -21,7 +21,7 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
-  const [requiredProvider, setRequiredProvider] = useState<'openai' | 'openrouter' | 'huggingface'>('openrouter');
+  const [requiredProvider, setRequiredProvider] = useState<'openai' | 'openrouter' | 'huggingface' | 'together'>('openrouter');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { toast } = useToast();
@@ -96,7 +96,7 @@ const Index = () => {
     }
 
     // Check if API key is available for the current provider
-    const provider = settings?.chat_using as 'openai' | 'openrouter' | 'huggingface';
+    const provider = settings?.chat_using as 'openai' | 'openrouter' | 'huggingface' | 'together';
     if (provider && !hasApiKey(provider)) {
       setRequiredProvider(provider);
       setApiKeyDialogOpen(true);
