@@ -185,7 +185,25 @@ const Index = () => {
       console.error('=== MESSAGE SEND ERROR ===');
       console.error('Error type:', error.constructor?.name);
       console.error('Error message:', error.message);
-      console.error('Error details:', error);
+      
+      // Handle Supabase FunctionsHttpError specifically
+      let errorDetails = 'Unknown error occurred';
+      if (error.context?.body) {
+        try {
+          const errorBody = typeof error.context.body === 'string' 
+            ? JSON.parse(error.context.body) 
+            : error.context.body;
+          errorDetails = errorBody.error || errorBody.details || errorBody.message || errorDetails;
+        } catch (parseError) {
+          errorDetails = error.context.body;
+        }
+      } else if (error.details) {
+        errorDetails = error.details;
+      } else if (error.message && error.message !== 'Edge Function returned a non-2xx status code') {
+        errorDetails = error.message;
+      }
+      
+      console.error('Error details:', errorDetails);
       console.error('=========================');
       
       let errorMessage = 'Failed to send message. Please try again.';
